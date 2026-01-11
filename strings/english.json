@@ -1,0 +1,5 @@
+{
+    "bread_jellyfin.modules.commands": "Jellyfin",
+    "bread_jellyfin.modules.commands.description": "Jellyfin Commands",
+    "bread_jellyfin.commands.commands.nowplaying.name": "NowPlaying"
+}
