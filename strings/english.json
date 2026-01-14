@@ -1,5 +1,17 @@
 {
     "bread_jellyfin.modules.commands": "Jellyfin",
     "bread_jellyfin.modules.commands.description": "Jellyfin Commands",
-    "bread_jellyfin.commands.commands.nowplaying.name": "NowPlaying"
+    "bread_jellyfin.commands.commands.nowplaying.name": "NowPlaying",
+    "bread_jellyfin.commands.commands.nowplaying.info": "Shows your currently playing media",
+    "bread_jellyfin.commands.commands.nowplaying.usage": "NowPlaying [-p]",
+    "bread_jellyfin.commands.nowplaying.args.showpaused": "show_paused",
+    "bread_jellyfin.commands.nowplaying.args.showpaused.desc": "Show paused players",
+    "bread_jellyfin.commands.commands.whoamijellyfin.name": "WhoAmIJellyfin",
+    "bread_jellyfin.commands.commands.whoamijellyfin.info": "Tells you who you are on Jellyfin",
+    "bread_jellyfin.commands.commands.whoamijellyfin.usage": "WhoAmIJellyfin [@user]",
+    "bread_jellyfin.commands.whoamijellyfin.args.user": "user",
+    "bread_jellyfin.commands.whoamijellyfin.args.user.desc": "Optional user to look up",
+    "bread_jellyfin.commands.commands.playlists.name": "Playlists",
+    "bread_jellyfin.commands.commands.playlists.info": "Some broken playlist stuff",
+    "bread_jellyfin.commands.commands.playlists.usage": "Playlists"
 }
