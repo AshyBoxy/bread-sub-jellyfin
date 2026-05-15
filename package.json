@@ -9,7 +9,7 @@
   "keywords": [],
   "author": "AshyBoxy <ashyboxy@ashyboxy.xyz>",
   "license": "MIT",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@jellyfin/sdk": "^0.13.0",
     "@types/get-image-colors": "^4.0.5",
