@@ -4,12 +4,15 @@ import { SessionInfoDto } from "@jellyfin/sdk/lib/generated-client/models";
 import { ImageUrlsApi } from "@jellyfin/sdk/lib/utils/api/image-urls-api";
 import { ContainerBuilder, MessageFlags, SectionBuilder, TextDisplayBuilder } from "discord.js";
 import { getAverageColor } from "fast-average-color-node";
+import getImageColors from "get-image-colors";
+import { Vibrant } from "node-vibrant/node";
 import { ArgumentsBuilder, BreadEmbed, Command } from "../../../framework";
 import { jellyfin, jellyfinApi, JUtils } from "../sub";
 import tmpConfig from "../tmpConfig";
 
 // TODO: configurable
 const embedMode = false;
+const colorMode: "average" | "dominant" | "vibrant" = "vibrant";
 
 interface ApiArgs {
     sessionApi: SessionApi;
@@ -72,9 +75,10 @@ async function constructComponentMusic(session: SessionInfoDto, { imageApi, item
 
     const trackName = session.NowPlayingItem!.Name!;
     const albumName = session.NowPlayingItem!.Album!;
+    const albumYear = session.NowPlayingItem!.ProductionYear!;
     const artists = session.NowPlayingItem!.Artists!;
     const titleStr = `### ${session.UserName}`;
-    const detailsStr = `${trackName}\n${albumName}\n${artists.join(", ")}\n-# ${session.Client} ${session.ApplicationVersion}`;
+    const detailsStr = `${trackName}\n${artists.join(", ")}\n${albumName} (${albumYear})\n-# ${session.Client} ${session.ApplicationVersion}`;
 
     // assuming at least one of these will have a primary image
     const tryIds = [session.NowPlayingItem!.Id!, session.NowPlayingItem!.ParentId!];
@@ -114,9 +118,9 @@ async function constructComponentMusic(session: SessionInfoDto, { imageApi, item
         const point = Math.floor(progress * barLength);
         const beforeLength = point;
         const afterLength = barLength - beforeLength - 1;
-        bar += "─".repeat(beforeLength);
+        bar += "─".repeat(Math.max(beforeLength, 0));
         bar += "⬤";
-        bar += "─".repeat(afterLength);
+        bar += "─".repeat(Math.max(afterLength, 0));
         bar += barChar;
 
         let text = `${progressText} \`${bar}\` ${totalText}`;
@@ -136,8 +140,55 @@ async function constructComponentMusic(session: SessionInfoDto, { imageApi, item
     section.setThumbnailAccessory((b) => b.setURL(imageUrl));
 
     const imageUrlForColor = imageApi.getItemImageUrlById(id, "Primary", { width: 256, format: "Jpg" });
-    const color = await getAverageColor(imageUrlForColor, { mode: "speed" });
-    container.setAccentColor(<[number, number, number]>color.value.slice(0, 3));
+
+    type ColorType = [number, number, number];
+    let color: ColorType | null = null;
+
+    const res = await fetch(imageUrlForColor);
+    const imageBuffer = Buffer.from(await res.arrayBuffer());
+    const type = res.headers.get("content-type") || undefined;
+    let mode = colorMode;
+
+    // just assuming getting the image won't fail for now
+    if (mode === "vibrant") {
+        const v = new Vibrant(imageBuffer, { quality: 1 });
+        const palette = await v.getPalette();
+
+        const swatch = palette.Vibrant;
+        if (!swatch) mode = "average";
+        else color = <ColorType>swatch.rgb;
+    }
+
+    if (mode === "average") {
+        const avgColor = await getAverageColor(imageBuffer, { mode: "speed" });
+        color = <ColorType>avgColor.value.slice(0, 3);
+    } else if (mode === "dominant") {
+        const baseColors = await getImageColors(imageBuffer, { count: 10, type });
+
+        // these could do with some tweaking
+        const saturationThreshold = 0.2;
+        const chromaThreshold = 50;
+
+        // filter out hueless colors
+        let colors = baseColors.filter((c) => !isNaN(c.hsl()[0]));
+        // filter by saturation
+        colors = colors.filter((c) => c.get("hsl.s") >= saturationThreshold);
+        // filter by chroma
+        colors = colors.filter((c) => c.get("lch.c") >= chromaThreshold);
+
+        if (colors.length === 0) colors = baseColors;
+
+        const dominantColor = colors[0];
+        const rgb = dominantColor.rgb();
+        color = <ColorType>rgb.slice(0, 3);
+    }
+
+    if (!color) color = [255, 255, 255];
+
+    // vibrant sometimes returns decimals?
+    color = <ColorType>color.map((c) => Math.round(c));
+
+    container.setAccentColor(color);
 
     container.addSectionComponents(section);
     return container;

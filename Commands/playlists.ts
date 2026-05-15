@@ -1,15 +1,15 @@
+import { ItemsApi } from "@jellyfin/sdk/lib/generated-client/api/items-api";
+import { UserApi } from "@jellyfin/sdk/lib/generated-client/api/user-api";
+import { UserLibraryApi } from "@jellyfin/sdk/lib/generated-client/api/user-library-api";
 import { BaseItemDto, UserDto } from "@jellyfin/sdk/lib/generated-client/models";
+import { ImageUrlsApi } from "@jellyfin/sdk/lib/utils/api/image-urls-api";
 import { ButtonBuilder, ButtonStyle, ContainerBuilder, FileUploadBuilder, LabelBuilder, MessageFlags, ModalBuilder, SectionBuilder, TextDisplayBuilder } from "discord.js";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { dbBasePath } from "../../../config";
 import { Command, Context } from "../../../framework";
 import { jellyfinApi, JUtils } from "../sub";
 import tmpConfig from "../tmpConfig";
-import { ImageUrlsApi } from "@jellyfin/sdk/lib/utils/api/image-urls-api";
-import { UserApi } from "@jellyfin/sdk/lib/generated-client/api/user-api";
-import { ItemsApi } from "@jellyfin/sdk/lib/generated-client/api/items-api";
-import { UserLibraryApi } from "@jellyfin/sdk/lib/generated-client/api/user-library-api";
-import { dbBasePath } from "../../../config";
-import fs from "node:fs/promises";
-import path from "node:path";
 
 interface ApisArg {
     userApi: UserApi;
@@ -152,6 +152,7 @@ const cmd = new Command(async (bot, ctx) => {
             // const res = await apis.imageApi.setItemImage({ itemId: playlistId, imageType: "Primary", body: new File([fileBuffer], file.name, { type: file.contentType ?? undefined }) }, { validateStatus: () => true });
             // using the api doesn't seem to encode it in base64?
             // honestly this feels kinda weird
+            // but at least on 10.10.7 it seems to want base64, and it's what the web ui does
             const res = await fetch(jellyfinApi.getUri(`Items/${playlistId}/Images/Primary`), {
                 headers: {
                     Authorization: jellyfinApi.authorizationHeader,

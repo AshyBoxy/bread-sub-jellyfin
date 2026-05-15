@@ -13,5 +13,12 @@
     "bread_jellyfin.commands.whoamijellyfin.args.user.desc": "Optional user to look up",
     "bread_jellyfin.commands.commands.playlists.name": "Playlists",
     "bread_jellyfin.commands.commands.playlists.info": "Some broken playlist stuff",
-    "bread_jellyfin.commands.commands.playlists.usage": "Playlists"
+    "bread_jellyfin.commands.commands.playlists.usage": "Playlists",
+    "bread_jellyfin.commands.commands.jellyfinsay.name": "JellyfinSay",
+    "bread_jellyfin.commands.commands.jellyfinsay.info": "Send a message to people on Jellyfin",
+    "bread_jellyfin.commands.commands.jellyfinsay.usage": "Use the slash command",
+    "bread_jellyfin.commands.jellyfinsay.args.user": "user",
+    "bread_jellyfin.commands.jellyfinsay.args.user.desc": "The specific person to send it to, if any",
+    "bread_jellyfin.commands.jellyfinsay.args.message": "message",
+    "bread_jellyfin.commands.jellyfinsay.args.message.desc": "The message to be sent"
 }

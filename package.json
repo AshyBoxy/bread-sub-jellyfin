@@ -12,6 +12,9 @@
   "type": "commonjs",
   "dependencies": {
     "@jellyfin/sdk": "^0.13.0",
-    "fast-average-color-node": "^3.2.0"
+    "@types/get-image-colors": "^4.0.5",
+    "fast-average-color-node": "^3.2.0",
+    "get-image-colors": "^4.0.1",
+    "node-vibrant": "^4.0.3"
   }
 }
