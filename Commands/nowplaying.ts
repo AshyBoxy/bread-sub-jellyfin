@@ -19,6 +19,7 @@ interface ApiArgs {
     imageApi: ImageUrlsApi;
     itemsApi: ItemsApi;
 }
+type ColorType = [number, number, number];
 
 export default new Command(async (bot, ctx, args) => {
     void jellyfin; void tmpConfig;
@@ -51,6 +52,10 @@ async function constructComponents(sessions: SessionInfoDto[], apis: ApiArgs): P
     for (const session of sessions) {
         if (session.NowPlayingItem!.Type === "Audio") {
             components.push(await constructComponentMusic(session, apis));
+            continue;
+        }
+        if (session.NowPlayingItem!.Type === "Movie") {
+            components.push(await constructComponentMovie(session, apis));
             continue;
         }
 
@@ -93,40 +98,8 @@ async function constructComponentMusic(session: SessionInfoDto, { imageApi, item
     section.addTextDisplayComponents((c) => c.setContent(titleStr));
 
     let upperDetailStr = "";
-
-    if (typeof session.PlayState?.PositionTicks === "number" && typeof session.NowPlayingItem?.RunTimeTicks === "number") {
-        const positionSeconds = Math.floor(session.PlayState.PositionTicks / 10000000);
-        const runtimeSeconds = Math.floor(session.NowPlayingItem.RunTimeTicks / 10000000);
-
-        const minutesPos = Math.floor(positionSeconds / 60);
-        const secondsPos = positionSeconds % 60;
-        const minutesRun = Math.floor(runtimeSeconds / 60);
-        const secondsRun = runtimeSeconds % 60;
-
-        const secondsPosStr = secondsPos.toString().padStart(2, "0");
-        const secondsRunStr = secondsRun.toString().padStart(2, "0");
-
-        const progressText = `${minutesPos}:${secondsPosStr}`;
-        const totalText = `${minutesRun}:${secondsRunStr}`;
-
-        // const barChar = "/";
-        // const barChar = "|";
-        const barChar = "";
-        let bar = barChar;
-        const barLength = 20;
-        const progress = session.PlayState.PositionTicks / session.NowPlayingItem.RunTimeTicks;
-        const point = Math.floor(progress * barLength);
-        const beforeLength = point;
-        const afterLength = barLength - beforeLength - 1;
-        bar += "─".repeat(Math.max(beforeLength, 0));
-        bar += "⬤";
-        bar += "─".repeat(Math.max(afterLength, 0));
-        bar += barChar;
-
-        let text = `${progressText} \`${bar}\` ${totalText}`;
-        if (session.PlayState.IsPaused) text += " (Paused)";
-        upperDetailStr += `\n-# ${text}`;
-    }
+    const bar = progressBarSession(session);
+    if (bar) upperDetailStr += `\n-# ${bar}`;
 
     const userData = (await itemsApi.getItemUserData({ itemId: session.NowPlayingItem!.Id!, userId: session.UserId! })).data;
     if (typeof userData.PlayCount === "number")
@@ -140,16 +113,76 @@ async function constructComponentMusic(session: SessionInfoDto, { imageApi, item
     section.setThumbnailAccessory((b) => b.setURL(imageUrl));
 
     const imageUrlForColor = imageApi.getItemImageUrlById(id, "Primary", { width: 256, format: "Jpg" });
-
-    type ColorType = [number, number, number];
-    let color: ColorType | null = null;
-
-    const res = await fetch(imageUrlForColor);
-    const imageBuffer = Buffer.from(await res.arrayBuffer());
-    const type = res.headers.get("content-type") || undefined;
-    let mode = colorMode;
+    const mode = colorMode;
 
     // just assuming getting the image won't fail for now
+    const color = await getImageColorUrl(mode, imageUrlForColor);
+
+    container.setAccentColor(color);
+
+    container.addSectionComponents(section);
+    return container;
+}
+
+async function constructComponentMovie(session: SessionInfoDto, { imageApi, itemsApi }: ApiArgs): Promise<ContainerBuilder> {
+    const container = new ContainerBuilder();
+    const section = new SectionBuilder();
+
+
+    const movieName = session.NowPlayingItem!.Name!;
+    const movieYear = session.NowPlayingItem!.ProductionYear!;
+    const movieGenres = (session.NowPlayingItem!.Genres || []);
+    const movieRating = session.NowPlayingItem!.CommunityRating;
+
+
+    const titleStr = `### ${session.UserName}`;
+    let upperDetailsStr = "";
+    let detailsStr = `${movieName} (${movieYear})`;
+
+    if (movieGenres.length > 0) detailsStr += `\n${movieGenres.join(", ")}`;
+    if (movieRating) detailsStr += `\nRory Rating ${movieRating}/10`;
+    detailsStr += `\n-# ${session.Client} ${session.ApplicationVersion}`;
+
+
+    const bar = progressBarSession(session);
+    if (bar) upperDetailsStr += `\n-# ${bar}`;
+
+    const userData = (await itemsApi.getItemUserData({ itemId: session.NowPlayingItem!.Id!, userId: session.UserId! })).data;
+    if (typeof userData.PlayCount === "number")
+        upperDetailsStr += `\n-# Plays: ${userData.PlayCount}`;
+
+
+    section.addTextDisplayComponents((c) => c.setContent(titleStr));
+    section.addTextDisplayComponents((c) => c.setContent(upperDetailsStr));
+    section.addTextDisplayComponents((c) => c.setContent(detailsStr));
+
+
+    const imageUrl = imageApi.getItemImageUrlById(session.NowPlayingItem!.Id!, "Primary");
+    section.setThumbnailAccessory((b) => b.setURL(imageUrl));
+
+    container.setAccentColor(await getImageColorUrl(colorMode, imageApi.getItemImageUrlById(session.NowPlayingItem!.Id!, "Primary", { width: 256, format: "Jpg" })));
+
+    container.addSectionComponents(section);
+    return container;
+}
+
+function constructEmbeds(sessions: SessionInfoDto[], imageApi: ImageUrlsApi): BreadEmbed[] {
+    const embeds: BreadEmbed[] = [];
+
+    for (const session of sessions) {
+        const embed = new BreadEmbed();
+        embed.setAuthor({ name: session.UserName! })
+            .setTitle(`Now Playing: ${session.NowPlayingItem!.Name}`)
+            .setThumbnail(imageApi.getItemImageUrlById(session.NowPlayingItem!.ParentId!, "Primary"));
+
+        embeds.push(embed);
+    }
+
+    return embeds;
+}
+
+async function getImageColor(mode: typeof colorMode, imageBuffer: Buffer, type?: string): Promise<ColorType> {
+    let color: ColorType | null = null;
     if (mode === "vibrant") {
         const v = new Vibrant(imageBuffer, { quality: 1 });
         const palette = await v.getPalette();
@@ -187,24 +220,54 @@ async function constructComponentMusic(session: SessionInfoDto, { imageApi, item
 
     // vibrant sometimes returns decimals?
     color = <ColorType>color.map((c) => Math.round(c));
-
-    container.setAccentColor(color);
-
-    container.addSectionComponents(section);
-    return container;
+    return color;
 }
 
-function constructEmbeds(sessions: SessionInfoDto[], imageApi: ImageUrlsApi): BreadEmbed[] {
-    const embeds: BreadEmbed[] = [];
+async function getImageColorUrl(mode: typeof colorMode, imageUrl: string): Promise<ColorType> {
+    const res = await fetch(imageUrl);
+    const imageBuffer = Buffer.from(await res.arrayBuffer());
+    const type = res.headers.get("content-type") || undefined;
+    return getImageColor(mode, imageBuffer, type);
+}
 
-    for (const session of sessions) {
-        const embed = new BreadEmbed();
-        embed.setAuthor({ name: session.UserName! })
-            .setTitle(`Now Playing: ${session.NowPlayingItem!.Name}`)
-            .setThumbnail(imageApi.getItemImageUrlById(session.NowPlayingItem!.ParentId!, "Primary"));
+function progressBarSession(session: SessionInfoDto): string | null {
+    if (typeof session.PlayState?.PositionTicks !== "number" || typeof session.NowPlayingItem?.RunTimeTicks !== "number") return null;
 
-        embeds.push(embed);
-    }
+    const positionSeconds = Math.floor(session.PlayState.PositionTicks / 10000000);
+    const runtimeSeconds = Math.floor(session.NowPlayingItem.RunTimeTicks / 10000000);
 
-    return embeds;
+    const hoursPos = Math.floor(positionSeconds / 3600);
+    const minutesPos = Math.floor((positionSeconds % 3600) / 60);
+    const secondsPos = positionSeconds % 60;
+    const hoursRun = Math.floor(runtimeSeconds / 3600);
+    const minutesRun = Math.floor((runtimeSeconds % 3600) / 60);
+    const secondsRun = runtimeSeconds % 60;
+
+    const minutesPosStr = minutesPos.toString().padStart(hoursPos > 0 ? 2 : 1, "0");
+    const secondsPosStr = secondsPos.toString().padStart(2, "0");
+    const minutesRunStr = minutesRun.toString().padStart(hoursRun > 0 ? 2 : 1, "0");
+    const secondsRunStr = secondsRun.toString().padStart(2, "0");
+
+    let progressText = `${minutesPosStr}:${secondsPosStr}`;
+    let totalText = `${minutesRunStr}:${secondsRunStr}`;
+    if (hoursPos > 0) progressText = `${hoursPos}:${progressText}`;
+    if (hoursRun > 0) totalText = `${hoursRun}:${totalText}`;
+
+    // const barChar = "/";
+    // const barChar = "|";
+    const barChar = "";
+    let bar = barChar;
+    const barLength = 20;
+    const progress = session.PlayState.PositionTicks / session.NowPlayingItem.RunTimeTicks;
+    const point = Math.floor(progress * barLength);
+    const beforeLength = point;
+    const afterLength = barLength - beforeLength - 1;
+    bar += "─".repeat(Math.max(beforeLength, 0));
+    bar += "⬤";
+    bar += "─".repeat(Math.max(afterLength, 0));
+    bar += barChar;
+
+    let text = `${progressText} \`${bar}\` ${totalText}`;
+    if (session.PlayState.IsPaused) text += " (Paused)";
+    return text;
 }
