@@ -1,4 +1,4 @@
-import { ArgumentsBuilder, Command } from "../../../framework/src";
+import { ArgumentsBuilder, Command } from "../../../framework";
 import { jellyfinApi, JUtils } from "../sub";
 import tmpConfig from "../tmpConfig";
 
